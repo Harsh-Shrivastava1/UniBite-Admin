@@ -31,8 +31,8 @@ const SidebarItem = ({ item }) => {
             title={isSidebarCollapsed ? item.name : ''}
             className={({ isActive }) =>
                 clsx(
-                    "flex items-center transition-all duration-200 group relative mb-1",
-                    isSidebarCollapsed ? "justify-center px-2 py-3 mx-2 rounded-lg" : "px-3 py-2 mx-3 rounded-md",
+                    "flex items-center transition-all duration-200 group relative mb-0.5",
+                    isSidebarCollapsed ? "justify-center px-2 py-3 mx-2 rounded-lg" : "px-3 py-1.5 mx-3 rounded-md",
                     isActive
                         ? "bg-secondary/50 text-foreground font-medium"
                         : "text-muted-foreground hover:bg-secondary/30 hover:text-foreground hover:translate-x-1"

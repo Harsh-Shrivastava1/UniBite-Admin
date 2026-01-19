@@ -100,7 +100,7 @@ const Sidebar = () => {
             <div className={sidebarClasses}>
                 {/* Header */}
                 <div className={clsx(
-                    "h-16 flex items-center border-b border-border transition-all duration-300",
+                    "h-14 flex items-center border-b border-border transition-all duration-300",
                     isSidebarCollapsed ? "justify-center px-0" : "justify-between px-5"
                 )}>
                     {!isSidebarCollapsed ? (
@@ -131,15 +131,15 @@ const Sidebar = () => {
 
                 {/* Search Input (Only Visible when Expanded) */}
                 {!isSidebarCollapsed && (
-                    <div className="px-3 py-3">
+                    <div className="px-3 py-2">
                         <div className="relative group">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-foreground transition-colors" />
                             <input
                                 type="text"
-                                placeholder="Search navigation..."
+                                placeholder="Search..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-secondary/50 border border-transparent focus:border-border hover:bg-secondary/80 text-sm rounded-lg pl-9 pr-3 py-2 text-foreground placeholder:text-muted-foreground/70 outline-none transition-all duration-200"
+                                className="w-full bg-secondary/50 border border-transparent focus:border-border hover:bg-secondary/80 text-sm rounded-lg pl-9 pr-3 py-1.5 text-foreground placeholder:text-muted-foreground/70 outline-none transition-all duration-200"
                             />
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none opacity-50">
                                 <Command className="w-3 h-3" />
@@ -148,13 +148,13 @@ const Sidebar = () => {
                     </div>
                 )}
 
-                {/* Navigation Scrolling Area */}
-                <nav className="flex-1 px-3 py-2 overflow-y-auto custom-scrollbar space-y-6">
+                {/* Navigation Scrolling Area - Removed space-y-6 */}
+                <nav className="flex-1 px-3 py-1 overflow-y-auto custom-scrollbar space-y-2">
                     {filteredNav.map((section, idx) => (
                         <div key={idx} className="animate-fade-in" style={{ animationDelay: `${idx * 50}ms` }}>
                             {/* Section Header */}
                             {!isSidebarCollapsed && !searchQuery && (
-                                <h3 className="px-3 mb-2 text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">
+                                <h3 className="px-3 mb-1 text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest">
                                     {section.section}
                                 </h3>
                             )}

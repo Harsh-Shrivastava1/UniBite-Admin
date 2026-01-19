@@ -12,31 +12,43 @@ import { useMemo } from 'react';
 const Dashboard = () => {
     const { users, shops, deliveryPartners, orders, stats } = useAdmin();
 
-    // Compute Chart Data (last 7 days)
-    // In a real app, this would be computed by backend or complex reducer.
-    // For now, we simulate a 7-day trend based on current orders + randomness for realism
     const chartData = useMemo(() => {
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const today = new Date().getDay();
+        const today = new Date();
+        const last7Days = [];
 
-        // Create 7 day buckets
-        return Array.from({ length: 7 }).map((_, i) => {
-            const dayIndex = (today - 6 + i + 7) % 7;
-            // Fake data generation based on total orders to keep it proportional and stable
-            // We use dayIndex as a seed for stability, and add orders.length to make it reactive to changes
-            const baseRevenue = 2000 + (dayIndex * 500);
-            const reactiveRevenue = baseRevenue + (orders.length * 100); // 1 order adds 100 revenue to visual trend
+        // Generate last 7 days dates (inclusive of today)
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            last7Days.push(d);
+        }
 
-            const baseOrders = 10 + dayIndex;
-            const reactiveOrders = baseOrders + Math.floor(orders.length / 2);
+        return last7Days.map(date => {
+            // Compare by date string YYYY-MM-DD to avoid time issues
+            const dateStr = date.toISOString().split('T')[0];
+            const dayName = days[date.getDay()];
+
+            // Filter orders for this specific date
+            const dayOrders = orders.filter(o => {
+                if (!o.created_at) return false;
+                // robust date parsing
+                const orderDate = new Date(o.created_at);
+                return orderDate.toISOString().split('T')[0] === dateStr;
+            });
+
+            // Revenue: Sum of amount for 'delivered' orders only
+            const dayRevenue = dayOrders
+                .filter(o => o.status === 'delivered')
+                .reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
             return {
-                name: days[dayIndex],
-                revenue: reactiveRevenue,
-                orders: reactiveOrders
+                name: dayName,
+                revenue: dayRevenue,
+                orders: dayOrders.length
             };
         });
-    }, [orders.length]); // Re-compute if order count changes
+    }, [orders]);
 
     // KPI Values
     const kpi = [
