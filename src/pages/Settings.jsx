@@ -383,19 +383,19 @@ const Settings = () => {
                         </div>
 
                         <div className="p-4 bg-background border border-red-500/20 rounded-lg">
-                            <h4 className="font-medium text-red-500 mb-1">Reset Demo Data</h4>
-                            <p className="text-xs text-muted-foreground mb-4">Wipe all non-default data and return to Day 1 state.</p>
+                            <h4 className="font-medium text-red-500 mb-1">Reload System</h4>
+                            <p className="text-xs text-muted-foreground mb-4">Reload the application to refresh all data connections.</p>
                             <button
                                 onClick={() => openModal({
-                                    title: "Reset to Factory Defaults?",
-                                    message: "Are you absolutely sure? This action cannot be undone and will wipe all mock data.",
+                                    title: "Reload Application?",
+                                    message: "This will refresh the page and reconnect to Supabase.",
                                     isDanger: true,
-                                    confirmText: "Yes, Reset Everything",
+                                    confirmText: "Yes, Reload",
                                     action: resetSystem
                                 })}
                                 className="w-full py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-md transition-colors shadow-lg shadow-red-900/20"
                             >
-                                Factory Reset
+                                Reload App
                             </button>
                         </div>
                     </div>

@@ -1,10 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { mockUsers } from '../data/mockUsers';
-import { mockShops } from '../data/mockShops';
-import { mockOrders } from '../data/mockOrders';
-import { mockDeliveryPartners } from '../data/mockDelivery';
-import { mockEarnings } from '../data/mockEarnings';
+import { supabase } from '../lib/supabaseClient';
 import { useToast } from './ToastContext';
+import { generateShopCredentials } from '../utils/generateCredentials';
 
 const AdminContext = createContext();
 
@@ -13,99 +10,69 @@ export const useAdmin = () => useContext(AdminContext);
 export const AdminProvider = ({ children }) => {
     const toast = useToast();
 
-    // Helper to load from localStorage or fallback
-    const loadState = (key, fallback) => {
-        const saved = localStorage.getItem(key);
-        return saved ? JSON.parse(saved) : fallback;
-    };
-
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [authStage, setAuthStage] = useState('unauthenticated'); // unauthenticated, 2fa_pending, device_pending, authenticated
+    const [user, setUser] = useState(null);
+    const [session, setSession] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [failedAttempts, setFailedAttempts] = useState(0);
-    const [loginActivity, setLoginActivity] = useState([
-        { id: 1, date: 'Today 10:21 PM', device: 'Chrome Windows', location: 'Ahmedabad, India', status: 'Success' },
-        { id: 2, date: 'Today 10:19 PM', device: 'Unknown Linux', location: 'Delhi, India', status: 'Failed' },
-        { id: 3, date: 'Yesterday', device: 'Safari MacOS', location: 'Mumbai, India', status: 'Success' },
-    ]);
 
     useEffect(() => {
-        const auth = localStorage.getItem('auth');
-        if (auth === 'true') {
-            setIsAuthenticated(true);
-            setAuthStage('authenticated');
-        }
-        setIsLoading(false);
+        // Check active session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setUser(session?.user ?? null);
+            setIsLoading(false);
+        });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+            setUser(session?.user ?? null);
+            setIsLoading(false);
+        });
+
+        return () => subscription.unsubscribe();
     }, []);
 
-    const login = async (username, password) => {
-        return new Promise((resolve, reject) => {
-            // Check for brute force lock (mock check here, UI handles timer)
-            if (failedAttempts >= 3) {
-                reject('Too many attempts. Account locked.');
-                return;
-            }
+    const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
+        return localStorage.getItem('isAdminAuthenticated') === 'true';
+    });
 
-            setTimeout(() => {
-                if (username === 'admin123' && password === '123') {
-                    setAuthStage('2fa_pending');
-                    // setIsAuthenticated(true); // Don't set true yet
-                    toast.info('Credentials verified. Enter 2FA code.');
-                    resolve(true);
-                } else {
-                    setFailedAttempts(prev => prev + 1);
-                    setLoginActivity(prev => [{
-                        id: Date.now(),
-                        date: new Date().toLocaleString(),
-                        device: 'Current Device',
-                        location: 'Unknown',
-                        status: 'Failed'
-                    }, ...prev]);
-                    reject('Invalid credentials');
-                }
-            }, 800);
-        });
+    useEffect(() => {
+        localStorage.setItem('isAdminAuthenticated', isAdminAuthenticated);
+    }, [isAdminAuthenticated]);
+
+    const verifyCredentials = (email, password) => {
+        const envEmail = import.meta.env.VITE_ADMIN_EMAIL;
+        const envPassword = import.meta.env.VITE_ADMIN_PASSWORD;
+        return email === envEmail && password === envPassword;
     };
 
-    const verify2FA = async (code) => {
-        return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                if (code === '123456') {
-                    setAuthStage('device_pending');
-                    toast.success('2FA Verified.');
-                    resolve(true);
-                } else {
-                    reject('Invalid code');
-                }
-            }, 600);
-        });
+    const verifyTFA = (code) => {
+        const envTFA = import.meta.env.VITE_ADMIN_TFA;
+        return code === envTFA;
     };
 
-    const verifyDevice = (trusted) => {
-        if (trusted) {
-            localStorage.setItem('auth', 'true');
-            setIsAuthenticated(true);
-            setAuthStage('authenticated');
-            setLoginActivity(prev => [{
-                id: Date.now(),
-                date: new Date().toLocaleString(),
-                device: 'Chrome Windows',
-                location: 'Ahmedabad, India',
-                status: 'Success'
-            }, ...prev]);
-            toast.success('Device Trusted. Welcome Admin.');
+    const loginStep1 = async (email, password) => {
+        if (verifyCredentials(email, password)) {
+            return true;
         } else {
-            logout();
-            toast.error('Access Denied.');
+            throw new Error('Invalid credentials');
         }
     };
 
-    const logout = () => {
-        localStorage.removeItem('auth');
-        setIsAuthenticated(false);
-        setAuthStage('unauthenticated');
-        setFailedAttempts(0);
-        toast.info('Logged out successfully.');
+    const loginStep2 = async (code) => {
+        if (verifyTFA(code)) {
+            setIsAdminAuthenticated(true);
+            toast.success('Admin access granted');
+            return true;
+        } else {
+            throw new Error('Invalid 2FA code');
+        }
+    };
+
+    const logout = async () => {
+        setIsAdminAuthenticated(false);
+        // Optional: Also sign out of Supabase if we used it
+        await supabase.auth.signOut();
+        toast.info('Logged out safely.');
     };
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     // Initialize from localStorage or default to false
@@ -121,14 +88,19 @@ export const AdminProvider = ({ children }) => {
 
 
     // Data States
-    // Data States with Persistence
-    const [users, setUsers] = useState(() => loadState('users', mockUsers));
-    const [shops, setShops] = useState(() => loadState('shops', mockShops));
-    const [orders, setOrders] = useState(() => loadState('orders', mockOrders));
-    const [deliveryPartners, setDeliveryPartners] = useState(() => loadState('deliveryPartners', mockDeliveryPartners));
-    const [earnings, setEarnings] = useState(() => loadState('earnings', mockEarnings));
+
+
+    // Data States
+    const [users, setUsers] = useState([]);
+    const [shops, setShops] = useState([]);
+    const [orders, setOrders] = useState([]);
+    const [deliveryPartners, setDeliveryPartners] = useState([]);
+    const [earnings, setEarnings] = useState([]);
+
     // Expanded Settings State
-    const [settings, setSettings] = useState(() => loadState('settings', {
+    // Keep local storage for settings for now, or fetch from DB later
+    // Expanded Settings State
+    const [settings, setSettings] = useState({
         // Operational
         codEnabled: true,
         orderingTimeWindow: '09:00 - 23:00',
@@ -157,21 +129,167 @@ export const AdminProvider = ({ children }) => {
             beta: false,
             experimental: false
         }
-    }));
+    });
 
-    const [systemLogs, setSystemLogs] = useState(() => loadState('systemLogs', [
-        { id: 1, action: 'System Backup', performedBy: 'System', date: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), status: 'Success' },
-        { id: 2, action: 'Update Platform Commission', performedBy: 'Super Admin', date: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), status: 'Success' },
-        { id: 3, action: 'Failed Login Attempt', performedBy: 'Unknown', date: new Date(Date.now() - 1000 * 60 * 60 * 25).toISOString(), status: 'Warning' },
-    ]));
+    const [systemLogs, setSystemLogs] = useState(() => {
+        const saved = localStorage.getItem('systemLogs');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    // Data Fetching
+    const fetchData = async () => {
+        if (!isAdminAuthenticated) return; // Only check local auth
+        setIsLoading(true);
+        try {
+            // Fetch Users (Profiles)
+            // Schema has 'full_name', code expects 'name'
+            const { data: usersData, error: usersError } = await supabase
+                .from('users')
+                .select('*, name:full_name');
+            if (!usersError) setUsers(usersData || []);
+
+            // Fetch Shops with Menu
+            // Schema has 'menu_items', code used 'shop_menu'
+            const { data: shopsData, error: shopsError } = await supabase
+                .from('shops')
+                .select('*, menu_items(*)');
+
+            if (shopsError) throw shopsError;
+
+            // Transform to match UI expectation (menu property)
+            const transformedShops = (shopsData || []).map(shop => ({
+                ...shop,
+                // Map menu_items to menu, and handle field differences
+                menu: (shop.menu_items || []).map(m => ({
+                    ...m,
+                    image: m.image_url,      // DB: image_url, UI: image
+                    available: m.is_available // DB: is_available, UI: available
+                }))
+            }));
+            setShops(transformedShops);
+
+            // Fetch Orders with Joins
+            const { data: ordersData, error: ordersError } = await supabase
+                .from('orders')
+                .select(`
+                *,
+                shops (name),
+                order_items (*)
+            `)
+                .order('created_at', { ascending: false });
+            if (ordersError) throw ordersError;
+
+            // Map orders to UI format
+            const formattedOrders = (ordersData || []).map(order => ({
+                ...order,
+                shop: order.shops?.name || 'Unknown Shop',
+                items: order.order_items?.map(i => `${i.quantity}x ${i.item_name}`) || [],
+                amount: order.total_amount,
+                user: 'User ' + (order.student_id ? order.student_id.slice(0, 4) : 'Unknown')
+            }));
+            setOrders(formattedOrders);
+
+            // Fetch Delivery Partners
+            const { data: partnersData, error: partnersError } = await supabase
+                .from('delivery_profiles')
+                .select('*');
+            if (partnersError) throw partnersError;
+            setDeliveryPartners(partnersData || []);
+
+            // Fetch Transactions/Earnings
+            const { data: transactionsData, error: earningsError } = await supabase
+                .from('transactions')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (earningsError) throw earningsError;
+
+            // Compute Stats
+            const completedOrders = (ordersData || []).filter(o => o.status === 'delivered');
+            const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
+
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            const monthlyRevenue = completedOrders
+                .filter(o => new Date(o.created_at) >= startOfMonth)
+                .reduce((sum, o) => sum + Number(o.amount || 0), 0);
+
+            const todayRevenue = completedOrders
+                .filter(o => new Date(o.created_at) >= startOfToday)
+                .reduce((sum, o) => sum + Number(o.amount || 0), 0);
+
+            setEarnings({
+                stats: {
+                    totalRevenue: totalRevenue.toFixed(2),
+                    monthly: monthlyRevenue.toFixed(2),
+                    today: todayRevenue.toFixed(2)
+                },
+                history: transactionsData || []
+            });
+
+            // Fetch Settings
+            const { data: settingsData } = await supabase
+                .from('platform_settings')
+                .select('*')
+                .single();
+            if (settingsData && settingsData.config) {
+                setSettings(prev => ({ ...prev, ...settingsData.config }));
+            }
+
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            toast.error('Failed to load dashboard data');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Initial Fetch
+    useEffect(() => {
+        if (isAdminAuthenticated) {
+            fetchData();
+        }
+    }, [isAdminAuthenticated]);
+
+    // Realtime Subscriptions
+    useEffect(() => {
+        if (!isAdminAuthenticated) return;
+
+        const channel = supabase.channel('admin-dashboard')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'orders' },
+                () => {
+                    toast.info('Orders updated');
+                    fetchData();
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'shops' },
+                () => fetchData()
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'users' },
+                () => fetchData() // Update user counts
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [isAdminAuthenticated]);
 
     // Persistence Effects
-    useEffect(() => localStorage.setItem('users', JSON.stringify(users)), [users]);
-    useEffect(() => localStorage.setItem('shops', JSON.stringify(shops)), [shops]);
-    useEffect(() => localStorage.setItem('orders', JSON.stringify(orders)), [orders]);
-    useEffect(() => localStorage.setItem('deliveryPartners', JSON.stringify(deliveryPartners)), [deliveryPartners]);
-    useEffect(() => localStorage.setItem('earnings', JSON.stringify(earnings)), [earnings]);
-    useEffect(() => localStorage.setItem('settings', JSON.stringify(settings)), [settings]);
+    // Removed data persistence to rely on DB
+    // useEffect(() => localStorage.setItem('users', JSON.stringify(users)), [users]);
+    // useEffect(() => localStorage.setItem('shops', JSON.stringify(shops)), [shops]);
+    // useEffect(() => localStorage.setItem('orders', JSON.stringify(orders)), [orders]);
+    // useEffect(() => localStorage.setItem('deliveryPartners', JSON.stringify(deliveryPartners)), [deliveryPartners]);
+    // useEffect(() => localStorage.setItem('earnings', JSON.stringify(earnings)), [earnings]);
+    // useEffect(() => localStorage.setItem('settings', JSON.stringify(settings)), [settings]);
     useEffect(() => localStorage.setItem('systemLogs', JSON.stringify(systemLogs)), [systemLogs]);
 
     // Sidebar Actions
@@ -183,12 +301,12 @@ export const AdminProvider = ({ children }) => {
     const stats = {
         totalRevenue: orders
             .filter(o => o.status === 'delivered')
-            .reduce((sum, o) => sum + Number(o.amount), 0),
+            .reduce((sum, o) => sum + Number(o.amount || 0), 0),
         activeOrders: orders
-            .filter(o => ['pending', 'accepted', 'ready', 'picked', 'preparing'].includes(o.status)).length,
+            .filter(o => !['delivered', 'cancelled'].includes(o.status)).length,
         totalOrders: orders.length,
-        totalUsers: users.length,
-        activeShops: shops.filter(s => s.status === 'approved').length,
+        totalUsers: users.length, // Placeholder
+        activeShops: shops.filter(s => s.is_open).length,
     };
 
     // --- Actions ---
@@ -206,67 +324,253 @@ export const AdminProvider = ({ children }) => {
     };
 
     // User Actions
-    const addUser = (user) => {
-        const newUser = { ...user, id: Date.now(), joinDate: new Date().toISOString().split('T')[0], status: 'active' };
-        setUsers([newUser, ...users]);
+    const addUser = async (user) => {
+        // Typically handled via Auth, but if just adding to a table:
+        const { data, error } = await supabase
+            .from('users')
+            .insert([{ ...user, join_date: new Date().toISOString() }])
+            .select()
+            .single();
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
+        setUsers([data, ...users]);
         toast.success("User added successfully.");
         logAction(`Added new user: ${user.name}`);
     };
-    const blockUser = (id) => {
+
+    const blockUser = async (id) => {
+        const { error } = await supabase
+            .from('users')
+            .update({ status: 'blocked' })
+            .eq('id', id);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setUsers(users.map(u => u.id === id ? { ...u, status: 'blocked' } : u));
         toast.info("User blocked.");
         logAction(`Blocked user ID: ${id}`, 'Warning');
     };
-    const unblockUser = (id) => {
+
+    const unblockUser = async (id) => {
+        const { error } = await supabase
+            .from('users')
+            .update({ status: 'active' })
+            .eq('id', id);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setUsers(users.map(u => u.id === id ? { ...u, status: 'active' } : u));
         toast.success("User unblocked.");
         logAction(`Unblocked user ID: ${id}`);
     };
-    const deleteUser = (id) => {
+
+    const deleteUser = async (id) => {
+        const { error } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setUsers(users.filter(u => u.id !== id));
         toast.warning("User deleted.");
         logAction(`Deleted user ID: ${id}`, 'Warning');
     };
 
     // Shop Actions
-    const addShop = (shop) => {
-        setShops([{ ...shop, id: Date.now(), status: 'pending', revenue: 0, rating: 0, image: "https://images.unsplash.com/photo-1472851294608-415522f96319?w=800&auto=format&fit=crop&q=60", menu: [] }, ...shops]);
-        toast.success("Shop application received.");
-        logAction(`Added new shop: ${shop.name}`);
-    };
-    const editShop = (id, updates) => {
-        setShops(shops.map(s => s.id === id ? { ...s, ...updates } : s));
-        toast.success("Shop details updated.");
-        logAction(`Updated shop details for ID: ${id}`);
-    };
-    const toggleShopStatus = (id) => {
-        setShops(shops.map(s => {
-            if (s.id === id) {
-                const newStatus = s.status === 'approved' ? 'disabled' : 'approved';
-                toast.success(`Shop ${newStatus === 'approved' ? 'enabled' : 'disabled'}.`);
-                logAction(`Shop ${s.name} ${newStatus}`);
-                return { ...s, status: newStatus };
+    const addShop = async (shop) => {
+        const fullPayload = {
+            ...shop,
+            owner_id: user?.id || '00000000-0000-0000-0000-000000000000',
+            is_open: false,
+            rating: 4.5,
+            image: "https://images.unsplash.com/photo-1554679665-f5537f187268?auto=format&fit=crop&q=80&w=600",
+            revenue: 0
+        };
+
+        try {
+            // Try inserting with ALL fields (Optimistic)
+            const { data, error } = await supabase
+                .from('shops')
+                .insert([fullPayload])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // 2. Generate and Store Credentials
+            const credentials = generateShopCredentials();
+
+            const { error: authError } = await supabase
+                .from('shop_auth')
+                .insert([{
+                    shop_id: data.id,
+                    login_id: credentials.loginId,
+                    password: credentials.password
+                }]);
+
+            if (authError) {
+                console.error("Failed to create shop credentials:", authError);
+                toast.error("Shop created but failed to generate credentials. Please check database tables.");
+                // We don't return here because the shop itself WAS created.
             }
-            return s;
-        }));
+
+            setShops([{ ...data, menu: [] }, ...shops]);
+            toast.success("Shop added successfully.");
+            logAction(`Added new shop: ${shop.name}`);
+
+            // Return credentials to be shown in UI
+            return authError ? null : credentials;
+
+        } catch (error) {
+            // Check for Schema Mismatch (Missing Column)
+            if (error.message?.includes("Could not find the") || error.code === 'PGRST204') {
+                console.warn("Schema mismatch detected. Retrying with basic fields...");
+
+                // Fallback: Strip new columns
+                const { owner, image, rating, revenue, ...safePayload } = fullPayload;
+
+                const { data: safeData, error: safeError } = await supabase
+                    .from('shops')
+                    .insert([safePayload])
+                    .select()
+                    .single();
+
+                if (safeError) {
+                    toast.error(safeError.message);
+                    return;
+                }
+
+                setShops([{ ...safeData, menu: [] }, ...shops]);
+                toast.warning("Shop added, but some fields (Image, Owner) were skipped. Please update your Database Schema.");
+                logAction(`Added new shop (Basic Mode): ${shop.name}`);
+            } else {
+                toast.error(error.message);
+            }
+        }
     };
-    const deleteShop = (id) => {
+
+    const editShop = async (id, updates) => {
+        try {
+            // Try updating ALL fields
+            const { error } = await supabase
+                .from('shops')
+                .update(updates)
+                .eq('id', id);
+
+            if (error) throw error;
+
+            setShops(shops.map(s => s.id === id ? { ...s, ...updates } : s));
+            toast.success("Shop details updated.");
+            logAction(`Updated shop details for ID: ${id}`);
+
+        } catch (error) {
+            // Check for Schema Mismatch
+            if (error.message?.includes("Could not find the") || error.code === 'PGRST204') {
+                console.warn("Schema mismatch detected during update. Retrying...");
+
+                // Fallback: Strip potentially missing columns
+                // eslint-disable-next-line no-unused-vars
+                const { owner, image, rating, revenue, ...safeUpdates } = updates;
+
+                if (Object.keys(safeUpdates).length === 0) {
+                    toast.info("No changes saved. Database missing target columns.");
+                    return;
+                }
+
+                const { error: safeError } = await supabase
+                    .from('shops')
+                    .update(safeUpdates)
+                    .eq('id', id);
+
+                if (safeError) {
+                    toast.error(safeError.message);
+                    return;
+                }
+
+                setShops(shops.map(s => s.id === id ? { ...s, ...safeUpdates } : s));
+                toast.warning("Saved basic details only. Database update required for full features.");
+            } else {
+                toast.error(error.message);
+            }
+        }
+    };
+    const toggleShopStatus = async (id) => {
+        const shop = shops.find(s => s.id === id);
+        if (!shop) return;
+
+        const newStatus = !shop.is_open;
+        const { error } = await supabase
+            .from('shops')
+            .update({ is_open: newStatus })
+            .eq('id', id);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
+        setShops(shops.map(s => s.id === id ? { ...s, is_open: newStatus } : s));
+        toast.success(`Shop ${newStatus ? 'enabled' : 'disabled'}.`);
+        logAction(`Shop ${shop.name} ${newStatus ? 'enabled' : 'disabled'}`);
+    };
+    const deleteShop = async (id) => {
+        const { error } = await supabase
+            .from('shops')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setShops(shops.filter(s => s.id !== id));
         toast.warning("Shop deleted.");
         logAction(`Deleted shop ID: ${id}`, 'Warning');
     };
 
     // Menu Actions
+    // Menu Actions
     const updateShopMenu = (shopId, menuItems) => {
-        setShops(shops.map(s => s.id === shopId ? { ...s, menu: menuItems } : s));
-        // logAction(`Updated menu for shop ID: ${shopId}`); // Too verbose if called often
+        // Legacy or bulk update - optional to implement if needed
+        console.warn("Bulk menu update not fully implemented via Supabase yet.");
     };
 
-    const toggleMenuItemAvailability = (shopId, itemId) => {
+    const toggleMenuItemAvailability = async (shopId, itemId) => {
+        const shop = shops.find(s => s.id === shopId);
+        const item = shop?.menu?.find(m => m.id === itemId);
+        if (!item) return;
+
+        const newAvailability = !item.available;
+
+        const { error } = await supabase
+            .from('menu_items')
+            .update({ is_available: newAvailability })
+            .eq('id', itemId);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setShops(shops.map(s => {
             if (s.id === shopId) {
-                const updatedMenu = s.menu.map(item =>
-                    item.id === itemId ? { ...item, available: !item.available } : item
+                const updatedMenu = s.menu.map(m =>
+                    m.id === itemId ? { ...m, available: newAvailability } : m
                 );
                 return { ...s, menu: updatedMenu };
             }
@@ -275,10 +579,32 @@ export const AdminProvider = ({ children }) => {
         toast.success("Item availability updated.");
     };
 
-    const addMenuItem = (shopId, item) => {
+    const addMenuItem = async (shopId, item) => {
+        // Ensure price is a number
+        const payload = {
+            ...item,
+            shop_id: shopId,
+            price: Number(item.price),
+            is_available: true,
+            is_veg: true,
+            image_url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c"
+        };
+
+        const { data, error } = await supabase
+            .from('menu_items')
+            .insert([payload])
+            .select()
+            .single();
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setShops(shops.map(s => {
             if (s.id === shopId) {
-                return { ...s, menu: [...s.menu, { ...item, id: Date.now() }] };
+                const newItem = { ...data, image: data.image_url, available: data.is_available };
+                return { ...s, menu: [...(s.menu || []), newItem] };
             }
             return s;
         }));
@@ -286,7 +612,17 @@ export const AdminProvider = ({ children }) => {
         logAction(`Added menu item to shop ID: ${shopId}`);
     };
 
-    const deleteMenuItem = (shopId, itemId) => {
+    const deleteMenuItem = async (shopId, itemId) => {
+        const { error } = await supabase
+            .from('menu_items')
+            .delete()
+            .eq('id', itemId);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setShops(shops.map(s => {
             if (s.id === shopId) {
                 return { ...s, menu: s.menu.filter(m => m.id !== itemId) };
@@ -297,47 +633,100 @@ export const AdminProvider = ({ children }) => {
     };
 
     // Order Actions
-    const updateOrderStatus = (id, status) => {
+    const updateOrderStatus = async (id, status) => {
+        const { error } = await supabase
+            .from('orders')
+            .update({ status })
+            .eq('id', id);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setOrders(orders.map(o => o.id === id ? { ...o, status } : o));
-
-        // If delivered, maybe trigger earnings update logic?
-        // (Currently earnings are computed on-the-fly in 'stats', so no separate state update needed unless we track deeper analytics)
-
         toast.success(`Order #${id} marked as ${status}.`);
         logAction(`Order #${id} status changed to ${status}`);
     };
 
     // Delivery Partner Actions
-    const addDeliveryPartner = (partner) => {
-        setDeliveryPartners([{ ...partner, id: Date.now(), status: 'active', completedDeliveries: 0, rating: 5.0, joinDate: 'Just now' }, ...deliveryPartners]);
+    const addDeliveryPartner = async (partner) => {
+        const { data, error } = await supabase
+            .from('delivery_profiles')
+            .insert([{ ...partner, status: 'active', completed_deliveries: 0, rating: 5.0, join_date: new Date().toISOString() }])
+            .select()
+            .single();
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
+        setDeliveryPartners([data, ...deliveryPartners]);
         toast.success("Partner added.");
         logAction(`Added delivery partner: ${partner.name}`);
     };
-    const blockDeliveryPartner = (id) => {
+
+    const blockDeliveryPartner = async (id) => {
+        const { error } = await supabase
+            .from('delivery_profiles')
+            .update({ status: 'blocked' })
+            .eq('id', id);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setDeliveryPartners(deliveryPartners.map(p => p.id === id ? { ...p, status: 'blocked' } : p));
         toast.info("Partner blocked.");
         logAction(`Blocked delivery partner ID: ${id}`, 'Warning');
     };
-    const removeDeliveryPartner = (id) => {
+
+    const removeDeliveryPartner = async (id) => {
+        const { error } = await supabase
+            .from('delivery_profiles')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            toast.error(error.message);
+            return;
+        }
+
         setDeliveryPartners(deliveryPartners.filter(p => p.id !== id));
         toast.warning("Partner removed.");
         logAction(`Removed delivery partner ID: ${id}`, 'Warning');
     };
 
     // Settings Actions
-    const updateSettings = (key, value, section = null) => {
+    const updateSettings = async (key, value, section = null) => {
+        let newSettings;
         if (section) {
-            setSettings(prev => ({
-                ...prev,
+            newSettings = {
+                ...settings,
                 [section]: {
-                    ...prev[section],
+                    ...settings[section],
                     [key]: value
                 }
-            }));
+            };
         } else {
-            setSettings(prev => ({ ...prev, [key]: value }));
+            newSettings = { ...settings, [key]: value };
         }
-        // Minimal toast for significant changes
+
+        setSettings(newSettings);
+
+        // Persist to Supabase
+        try {
+            // Check if row exists (upsert)
+            // Assuming table 'platform_settings' with id=1 and column 'config' (jsonb)
+            await supabase
+                .from('platform_settings')
+                .upsert({ id: 1, config: newSettings });
+
+        } catch (err) {
+            console.error("Failed to persist settings to DB", err);
+        }
     };
 
     const addSystemLog = logAction; // Alias for compatibility if needed
@@ -348,9 +737,9 @@ export const AdminProvider = ({ children }) => {
     };
 
     const resetSystem = () => {
-        // Reset to mocks
-        if (window.confirm("Are you sure? This will reload the page.")) {
-            localStorage.clear();
+        // Reload system
+        if (window.confirm("Are you sure? This will reload the application.")) {
+            // localStorage.clear(); // Opsional: Clear local prefs
             window.location.reload();
         }
     };
@@ -358,8 +747,8 @@ export const AdminProvider = ({ children }) => {
     return (
         <AdminContext.Provider value={{
             isSidebarOpen, toggleSidebar, closeSidebar, isSidebarCollapsed, toggleCollapse,
-            isAuthenticated, authStage, isLoading, failedAttempts, loginActivity,
-            login, verify2FA, verifyDevice, logout,
+            session, user, isLoading,
+            loginStep1, loginStep2, logout, isAdminAuthenticated,
 
             // Computed
             stats,

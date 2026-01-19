@@ -11,11 +11,11 @@ const MenuManagementModal = ({ isOpen, onClose, shop }) => {
     const [newItem, setNewItem] = useState({ name: '', price: '', category: '', available: true });
 
     // Shop Details Form State
-    const [formData, setFormData] = useState({ name: '', owner: '', status: '' });
+    const [formData, setFormData] = useState({ name: '', owner: '', image: '', is_open: false });
 
     useEffect(() => {
         if (shop) {
-            setFormData({ name: shop.name, owner: shop.owner, status: shop.status });
+            setFormData({ name: shop.name || '', owner: shop.owner || '', image: shop.image || '', is_open: shop.is_open });
         }
     }, [shop]);
 
@@ -99,15 +99,24 @@ const MenuManagementModal = ({ isOpen, onClose, shop }) => {
                                 />
                             </div>
                             <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">Shop Image URL</label>
+                                <input
+                                    type="url"
+                                    value={formData.image || ''}
+                                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground outline-none"
+                                    placeholder="https://..."
+                                />
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-muted-foreground mb-1">Status</label>
                                 <select
-                                    value={formData.status}
-                                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                                    value={formData.is_open ? 'open' : 'closed'}
+                                    onChange={(e) => setFormData({ ...formData, is_open: e.target.value === 'open' })}
                                     className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground outline-none"
                                 >
-                                    <option value="approved">Approved (Active)</option>
-                                    <option value="disabled">Disabled</option>
-                                    <option value="pending">Pending</option>
+                                    <option value="open">Open (Active)</option>
+                                    <option value="closed">Closed (Disabled)</option>
                                 </select>
                             </div>
                             <div className="pt-4">

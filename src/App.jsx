@@ -4,6 +4,8 @@ import Sidebar from './components/layout/Sidebar';
 import Topbar from './components/layout/Topbar';
 import CommandPalette from './components/ui/CommandPalette';
 import Login from './pages/Login';
+import ShopLogin from './pages/ShopLogin';
+import ShopDashboard from './pages/ShopDashboard';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Shops from './pages/Shops';
@@ -18,7 +20,7 @@ import { ToastProvider } from './context/ToastContext';
 import { Loader2 } from 'lucide-react';
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, authStage, isLoading } = useAdmin();
+  const { isAdminAuthenticated, isLoading } = useAdmin();
   const location = useLocation();
 
   if (isLoading) {
@@ -29,16 +31,7 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  // Handle multi-step auth redirects
-  if (authStage === '2fa_pending' && location.pathname !== '/2fa') {
-    return <Navigate to="/2fa" replace />;
-  }
-  if (authStage === 'device_pending' && location.pathname !== '/verify-device') {
-    return <Navigate to="/verify-device" replace />;
-  }
-
-  // If not authenticated (and not in a pending stage), go to login
-  if (!isAuthenticated && authStage === 'unauthenticated') {
+  if (!isAdminAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -46,7 +39,7 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAdmin();
+  const { isAdminAuthenticated, isLoading } = useAdmin();
 
   if (isLoading) {
     return (
@@ -56,7 +49,7 @@ const PublicRoute = ({ children }) => {
     );
   }
 
-  if (isAuthenticated) {
+  if (isAdminAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -99,6 +92,11 @@ function App() {
                 <Login />
               </PublicRoute>
             } />
+            {/* Special Routes - Self Managed Auth */}
+            <Route path="/shop-login" element={<ShopLogin />} />
+            <Route path="/shop-dashboard" element={<ShopDashboard />} />
+
+            {/* Public Route (Login) */}
             <Route path="/2fa" element={<TwoFactor />} />
             <Route path="/verify-device" element={<DeviceVerification />} />
             <Route path="/*" element={

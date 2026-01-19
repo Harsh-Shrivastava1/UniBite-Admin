@@ -1,38 +1,20 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAdmin } from '../context/AdminContext';
-import { Lock, Eye, EyeOff, Shield, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Lock, Eye, EyeOff, Shield, Loader2, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 
 const Login = () => {
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [tfaCode, setTfaCode] = useState('');
+    const [step, setStep] = useState(1); // 1 = Creds, 2 = TFA
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { login, failedAttempts } = useAdmin();
+    const { loginStep1, loginStep2 } = useAdmin();
     const navigate = useNavigate();
     const location = useLocation();
-
-    // Brute force lockout state
-    const isLocked = failedAttempts >= 3;
-    const [countdown, setCountdown] = useState(0);
-
-    useEffect(() => {
-        if (isLocked) {
-            setCountdown(30);
-            const timer = setInterval(() => {
-                setCountdown((prev) => {
-                    if (prev <= 1) {
-                        clearInterval(timer);
-                        return 0; // In a real app, we'd reset attempts or require admin reset
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-            return () => clearInterval(timer);
-        }
-    }, [isLocked]);
 
     // Shake animation state
     const [shake, setShake] = useState(false);
@@ -45,10 +27,16 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            await login(username, password);
-            navigate('/2fa'); // Redirect to 2FA instead of dashboard
+            if (step === 1) {
+                await loginStep1(email, password);
+                setStep(2);
+                setIsLoading(false);
+            } else {
+                await loginStep2(tfaCode);
+                navigate(from, { replace: true });
+            }
         } catch (err) {
-            setError(err);
+            setError(err.message || 'Failed to login');
             setIsLoading(false);
             setShake(true);
             setTimeout(() => setShake(false), 500);
@@ -76,67 +64,88 @@ const Login = () => {
                     <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white/5 border border-white/10 mb-4 animate-pulse-slow">
                         <Lock className="w-5 h-5 text-white" />
                     </div>
-                    <h1 className="text-2xl font-bold tracking-tight text-white mb-2">Admin Access</h1>
-                    <p className="text-sm text-neutral-400">Enter your secure credentials to continue.</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-white mb-2">
+                        {step === 1 ? 'Admin Access' : 'Security Check'}
+                    </h1>
+                    <p className="text-sm text-neutral-400">
+                        {step === 1 ? 'Enter your secure credentials to continue.' : 'Enter the 2FA code sent to your device.'}
+                    </p>
                 </div>
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-4">
-                        <div className="relative group">
-                            <input
-                                type="text"
-                                id="username"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="peer w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-transparent focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all"
-                                placeholder="Username"
-                                autoComplete="username"
-                            />
-                            <label
-                                htmlFor="username"
-                                className="absolute left-4 top-3 text-neutral-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-neutral-500 peer-placeholder-shown:top-3 peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-white peer-focus:bg-black peer-focus:px-1 pointer-events-none peer-not-placeholder-shown:-top-2.5 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:text-white peer-not-placeholder-shown:bg-black peer-not-placeholder-shown:px-1"
-                            >
-                                Username
-                            </label>
-                        </div>
-
-                        <div className="relative group">
-                            <input
-                                type={showPassword ? "text" : "password"}
-                                id="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="peer w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-transparent focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all pr-12"
-                                placeholder="Password"
-                                autoComplete="current-password"
-                            />
-                            <label
-                                htmlFor="password"
-                                className="absolute left-4 top-3 text-neutral-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-neutral-500 peer-placeholder-shown:top-3 peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-white peer-focus:bg-black peer-focus:px-1 pointer-events-none peer-not-placeholder-shown:-top-2.5 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:text-white peer-not-placeholder-shown:bg-black peer-not-placeholder-shown:px-1"
-                            >
-                                Password
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-4 top-3.5 text-neutral-500 hover:text-white transition-colors focus:outline-none"
-                            >
-                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center text-sm">
-                        <label className="flex items-center space-x-2 cursor-pointer group">
-                            <div className="relative">
-                                <input type="checkbox" className="peer sr-only" />
-                                <div className="w-4 h-4 border border-white/20 rounded bg-transparent peer-checked:bg-white peer-checked:border-white transition-all"></div>
-                                <ArrowRight className="w-3 h-3 text-black absolute top-0.5 left-0.5 opacity-0 peer-checked:opacity-100 transition-opacity" />
+                    {step === 1 && (
+                        <div className="space-y-4 animate-fade-in-up">
+                            <div className="relative group">
+                                <input
+                                    type="email"
+                                    id="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="peer w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-transparent focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all"
+                                    placeholder="Email"
+                                    autoComplete="email"
+                                    required
+                                />
+                                <label
+                                    htmlFor="email"
+                                    className="absolute left-4 top-3 text-neutral-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-neutral-500 peer-placeholder-shown:top-3 peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-white peer-focus:bg-black peer-focus:px-1 pointer-events-none peer-not-placeholder-shown:-top-2.5 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:text-white peer-not-placeholder-shown:bg-black peer-not-placeholder-shown:px-1"
+                                >
+                                    Email
+                                </label>
                             </div>
-                            <span className="text-neutral-400 group-hover:text-neutral-300 transition-colors">Remember me</span>
-                        </label>
-                    </div>
+
+                            <div className="relative group">
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    id="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="peer w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-transparent focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all pr-12"
+                                    placeholder="Password"
+                                    autoComplete="current-password"
+                                    required
+                                />
+                                <label
+                                    htmlFor="password"
+                                    className="absolute left-4 top-3 text-neutral-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-neutral-500 peer-placeholder-shown:top-3 peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-white peer-focus:bg-black peer-focus:px-1 pointer-events-none peer-not-placeholder-shown:-top-2.5 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:text-white peer-not-placeholder-shown:bg-black peer-not-placeholder-shown:px-1"
+                                >
+                                    Password
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-4 top-3.5 text-neutral-500 hover:text-white transition-colors focus:outline-none"
+                                >
+                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 2 && (
+                        <div className="space-y-4 animate-fade-in-up">
+                            <div className="relative group">
+                                <input
+                                    type="text"
+                                    id="tfa"
+                                    value={tfaCode}
+                                    onChange={(e) => setTfaCode(e.target.value)}
+                                    className="peer w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-transparent focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all text-center tracking-[0.5em] font-mono text-lg"
+                                    placeholder="000000"
+                                    maxLength={6}
+                                    required
+                                    autoFocus
+                                />
+                                <label
+                                    htmlFor="tfa"
+                                    className="absolute left-4 top-3 text-neutral-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-neutral-500 peer-placeholder-shown:top-3 peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-white peer-focus:bg-black peer-focus:px-1 pointer-events-none peer-not-placeholder-shown:-top-2.5 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:text-white peer-not-placeholder-shown:bg-black peer-not-placeholder-shown:px-1 w-full text-center"
+                                >
+                                    2FA CODE
+                                </label>
+                            </div>
+                        </div>
+                    )}
 
                     {error && (
                         <div className="flex items-center space-x-2 text-red-400 bg-red-400/10 border border-red-400/20 px-4 py-3 rounded-lg text-sm animate-fade-in-up">
@@ -147,32 +156,38 @@ const Login = () => {
 
                     <button
                         type="submit"
-                        disabled={isLoading || (isLocked && countdown > 0)}
+                        disabled={isLoading}
                         className="w-full bg-white text-black font-semibold py-3 rounded-lg hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-black transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center relative overflow-hidden group"
                     >
                         {isLoading ? (
                             <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (isLocked && countdown > 0) ? (
-                            <span className="text-red-500 font-bold">Try again in {countdown}s</span>
                         ) : (
                             <>
-                                <span className="relative z-10 group-hover:tracking-wider transition-all duration-300">Secure Login</span>
+                                <span className="relative z-10 group-hover:tracking-wider transition-all duration-300">
+                                    {step === 1 ? 'Verify Credentials' : 'Complete Login'}
+                                </span>
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
                             </>
                         )}
                     </button>
+
+                    {step === 2 && (
+                        <button
+                            type="button"
+                            onClick={() => { setStep(1); setError(''); }}
+                            className="block w-full text-center text-xs text-neutral-500 hover:text-neutral-300 transition-colors mt-4"
+                        >
+                            Back to credentials
+                        </button>
+                    )}
                 </form>
 
                 {/* Footer */}
                 <div className="mt-8 pt-6 border-t border-white/5 text-center">
                     <div className="flex items-center justify-center space-x-2 text-neutral-500 text-xs uppercase tracking-widest mb-2">
                         <Shield className="w-3 h-3" />
-                        <span>Secured by Unibite</span>
+                        <span>Secured by EnvGuard</span>
                     </div>
-                    <p className="text-[10px] text-neutral-600">
-                        This system is monitored. Unauthorized access is prohibited.<br />
-                        IP: {`192.168.1.${Math.floor(Math.random() * 255)}`} &bull; Session ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}
-                    </p>
                 </div>
             </div>
 

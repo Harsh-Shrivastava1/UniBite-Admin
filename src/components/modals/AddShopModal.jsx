@@ -2,28 +2,62 @@ import { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { X, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
+import ShopCredentialsModal from './ShopCredentialsModal';
 
 const AddShopModal = ({ isOpen, onClose }) => {
     const { addShop } = useAdmin();
     const [isLoading, setIsLoading] = useState(false);
+    const [credentials, setCredentials] = useState(null);
+    const [newShopName, setNewShopName] = useState('');
     const [formData, setFormData] = useState({
         name: '',
-        owner: ''
+        owner: '',
+        image: ''
     });
 
-    if (!isOpen) return null;
+    if (!isOpen && !credentials) return null;
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setIsLoading(true);
 
-        setTimeout(() => {
-            addShop(formData);
+        try {
+            const result = await addShop(formData);
+
+            if (result) {
+                // Success with credentials
+                setCredentials(result);
+                setNewShopName(formData.name);
+                setFormData({ name: '', owner: '', image: '' });
+                // Don't close main modal yet, wait for user to close credentials modal
+            } else {
+                // Success but maybe no credentials (schema error) OR fallback handled
+                onClose();
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
             setIsLoading(false);
-            setFormData({ name: '', owner: '' });
-            onClose();
-        }, 600);
+        }
     };
+
+    const handleCloseCredentials = () => {
+        setCredentials(null);
+        onClose();
+    };
+
+    if (credentials) {
+        return (
+            <ShopCredentialsModal
+                isOpen={true}
+                onClose={handleCloseCredentials}
+                credentials={credentials}
+                shopName={newShopName}
+            />
+        );
+    }
+
+    if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -58,6 +92,18 @@ const AddShopModal = ({ isOpen, onClose }) => {
                             className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground focus:border-foreground outline-none transition-colors"
                             placeholder="e.g. Rahul Verma"
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">Shop Image URL</label>
+                        <input
+                            type="url"
+                            value={formData.image || ''}
+                            onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                            className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground focus:border-foreground outline-none transition-colors"
+                            placeholder="https://..."
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Leave empty for a default image.</p>
                     </div>
 
                     <div className="flex space-x-3 mt-6">
