@@ -1,10 +1,11 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAdmin } from '../../context/AdminContext';
 
-const TopShopsChart = () => {
+const TopShopsChart = ({ data: externalData }) => {
     const { shops } = useAdmin();
-    // Sort by revenue slice top 5
-    const data = [...shops]
+
+    // Use external data if provided, otherwise derive from shops context
+    const data = externalData || [...shops]
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 5)
         .map(s => ({ name: s.name, revenue: s.revenue }));
