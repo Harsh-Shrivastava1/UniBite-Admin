@@ -62,13 +62,13 @@ const Login = () => {
                 {/* Header */}
                 <div className="text-center mb-10">
                     <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white/5 border border-white/10 mb-4 animate-pulse-slow">
-                        <Lock className="w-5 h-5 text-white" />
+                        {step === 1 ? <Lock className="w-5 h-5 text-white" /> : <Shield className="w-5 h-5 text-white" />}
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight text-white mb-2">
                         {step === 1 ? 'Admin Access' : 'Security Check'}
                     </h1>
                     <p className="text-sm text-neutral-400">
-                        {step === 1 ? 'Enter your secure credentials to continue.' : 'Enter the 2FA code sent to your device.'}
+                        {step === 1 ? 'Enter your secure credentials to continue.' : 'Enter 2FA Unique Code'}
                     </p>
                 </div>
 
@@ -131,19 +131,17 @@ const Login = () => {
                                     id="tfa"
                                     value={tfaCode}
                                     onChange={(e) => setTfaCode(e.target.value)}
-                                    className="peer w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-transparent focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all text-center tracking-[0.5em] font-mono text-lg"
+                                    className="peer w-full bg-black/50 border border-white/10 rounded-lg px-4 py-4 text-white placeholder-transparent focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all text-center tracking-[0.75em] font-mono text-xl"
                                     placeholder="000000"
                                     maxLength={6}
                                     required
                                     autoFocus
                                 />
-                                <label
-                                    htmlFor="tfa"
-                                    className="absolute left-4 top-3 text-neutral-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-neutral-500 peer-placeholder-shown:top-3 peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-white peer-focus:bg-black peer-focus:px-1 pointer-events-none peer-not-placeholder-shown:-top-2.5 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:text-white peer-not-placeholder-shown:bg-black peer-not-placeholder-shown:px-1 w-full text-center"
-                                >
-                                    2FA CODE
-                                </label>
+                                {/* Removed floating label to prevent overlap glitches and keep it minimal as per request */}
                             </div>
+                            <p className="text-center text-xs text-neutral-500 mt-2">
+                                Enter the 6-digit code from your authenticator app
+                            </p>
                         </div>
                     )}
 
@@ -193,6 +191,26 @@ const Login = () => {
 
             {/* Styles for shake animation */}
             <style>{`
+                /* Fix for Chrome Autofill Label Overlap */
+                input:-webkit-autofill + label {
+                    top: -0.625rem !important;
+                    font-size: 0.75rem !important;
+                    color: white !important;
+                    background-color: black !important;
+                    padding-left: 0.25rem !important;
+                    padding-right: 0.25rem !important;
+                }
+                
+                /* Fix Autofill Background Color to match Theme */
+                input:-webkit-autofill,
+                input:-webkit-autofill:hover, 
+                input:-webkit-autofill:focus, 
+                input:-webkit-autofill:active {
+                    -webkit-box-shadow: 0 0 0 30px black inset !important;
+                    -webkit-text-fill-color: white !important;
+                    transition: background-color 5000s ease-in-out 0s;
+                }
+
                 @keyframes shake {
                     0%, 100% { transform: translateX(0); }
                     10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
@@ -216,7 +234,7 @@ const Login = () => {
                     animation: fade-in-up 0.3s ease-out forwards;
                 }
             `}</style>
-        </div>
+        </div >
     );
 };
 
