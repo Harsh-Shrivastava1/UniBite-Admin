@@ -12,7 +12,9 @@ import {
     ChevronRight,
     Search,
     X,
-    Command
+    Command,
+    CreditCard,
+    AlertCircle
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAdmin } from '../../context/AdminContext';
@@ -43,6 +45,8 @@ const Sidebar = () => {
                 { name: 'Shops', path: '/shops', icon: Store },
                 { name: 'Orders', path: '/orders', icon: ShoppingBag },
                 { name: 'Delivery', path: '/delivery', icon: Truck },
+                { name: 'Subscriptions', path: '/subscriptions', icon: CreditCard },
+                { name: 'Complaints', path: '/complaints', icon: AlertCircle },
             ]
         },
         {
@@ -105,9 +109,7 @@ const Sidebar = () => {
                 )}>
                     {!isSidebarCollapsed ? (
                         <div className="flex items-center gap-3 overflow-hidden whitespace-nowrap">
-                            <div className="w-8 h-8 rounded-lg bg-foreground text-background flex items-center justify-center font-bold text-lg shadow-glow-sm">
-                                U
-                            </div>
+                            <img src="/logo.png" alt="Unibite Logo" className="w-8 h-8 object-contain" />
                             <div className="flex flex-col">
                                 <h1 className="text-lg font-bold text-foreground tracking-tight leading-none">
                                     UNIBITE
@@ -118,8 +120,8 @@ const Sidebar = () => {
                             </div>
                         </div>
                     ) : (
-                        <div className="w-9 h-9 rounded-xl bg-foreground text-background flex items-center justify-center font-bold text-xl shadow-glow-sm">
-                            U
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center">
+                            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
                         </div>
                     )}
 

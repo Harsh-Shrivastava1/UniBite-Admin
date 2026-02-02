@@ -16,6 +16,8 @@ import Settings from './pages/Settings';
 import TwoFactor from './pages/TwoFactor';
 import DeviceVerification from './pages/DeviceVerification';
 import LoginActivity from './pages/LoginActivity';
+import Subscriptions from './pages/Subscriptions';
+import Complaints from './pages/Complaints';
 import { ToastProvider } from './context/ToastContext';
 import { Loader2 } from 'lucide-react';
 
@@ -73,6 +75,8 @@ const Layout = () => {
             <Route path="earnings" element={<Earnings />} />
             <Route path="settings" element={<Settings />} />
             <Route path="activity" element={<LoginActivity />} />
+            <Route path="subscriptions" element={<Subscriptions />} />
+            <Route path="complaints" element={<Complaints />} />
           </Routes>
         </main>
       </div>

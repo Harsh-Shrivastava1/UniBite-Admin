@@ -61,8 +61,8 @@ const Login = () => {
             )}>
                 {/* Header */}
                 <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white/5 border border-white/10 mb-4 animate-pulse-slow">
-                        {step === 1 ? <Lock className="w-5 h-5 text-white" /> : <Shield className="w-5 h-5 text-white" />}
+                    <div className="inline-flex items-center justify-center w-20 h-20 mb-4 animate-pulse-slow">
+                        <img src="/logo.png" alt="Unibite Logo" className="w-full h-full object-contain drop-shadow-2xl" />
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight text-white mb-2">
                         {step === 1 ? 'Admin Access' : 'Security Check'}
